@@ -24,6 +24,7 @@ import asyncio
 import os
 from functools import reduce
 from itertools import combinations
+from typing import Tuple
 
 import pytz
 import aiohttp
@@ -98,11 +99,12 @@ async def is_trading_day(day: datetime.datetime):
     return day, day.strftime('%Y%m%d') in (s.get('TradingDay'), s.get('LastTradingDay'))
 
 
-async def check_trading_day(day: datetime.datetime) -> (datetime.datetime, bool):
+async def check_trading_day(day: datetime.datetime) -> Tuple[datetime.datetime, bool]:
     async with aiohttp.ClientSession() as session:
         await max_conn_cffex.acquire()
         async with session.get(
-                'http://{}/fzjy/mrhq/{}/index.xml'.format(cffex_ip, day.strftime('%Y%m/%d')),
+                'http://{}/fzjy/mrhq/{}/index.xml'.format(
+                    cffex_ip, day.strftime('%Y%m/%d')),
                 allow_redirects=False) as response:
             max_conn_cffex.release()
             return day, response.status == 200
@@ -167,7 +169,8 @@ async def update_from_shfe(day: datetime.datetime) -> bool:
                             'open_interest': inst_data['OPENINTEREST'] if inst_data['OPENINTEREST'] else 0})
                 # 更新上期所合约中文名称
                 for code, name in inst_name_dict.items():
-                    Instrument.objects.filter(product_code=code).update(name=name)
+                    Instrument.objects.filter(
+                        product_code=code).update(name=name)
         return True
     except Exception as e:
         logger.warning(f'update_from_shfe failed: {repr(e)}', exc_info=True)
@@ -184,7 +187,8 @@ async def update_from_czce(day: datetime.datetime) -> bool:
                 for lines in rst.split('\n')[1:-3]:
                     if '小计' in lines or '合约' in lines or '品种' in lines:
                         continue
-                    inst_data = [x.strip() for x in lines.split('|' if '|' in lines else ',')]
+                    inst_data = [x.strip() for x in lines.split(
+                        '|' if '|' in lines else ',')]
                     """
         [0'合约代码', 1'昨结算', 2'今开盘', 3'最高价', 4'最低价', 5'今收盘', 6'今结算', 7'涨跌1', 8'涨跌2', 9'成交量(手)', 
          10'持仓量', 11'增减量', 12'成交额(万元)', 13'交割结算价']
@@ -243,7 +247,8 @@ async def update_from_dce(day: datetime.datetime) -> bool:
                         continue
                     if DCE_NAME_CODE[inst_data[0]] in IGNORE_INST_LIST:
                         continue
-                    expire_date = inst_data[1].removeprefix(DCE_NAME_CODE[inst_data[0]])
+                    expire_date = inst_data[1].removeprefix(
+                        DCE_NAME_CODE[inst_data[0]])
                     DailyBar.objects.update_or_create(
                         code=inst_data[1],
                         exchange=ExchangeType.DCE, time=day, defaults={
@@ -340,7 +345,8 @@ async def update_from_cffex(day: datetime.datetime) -> bool:
                             'close': inst_data.findtext('closeprice').replace(',', ''),
                             'settlement': inst_data.findtext('settlementprice').replace(',', '')
                             if inst_data.findtext('settlementprice') else
-                            inst_data.findtext('presettlementprice').replace(',', ''),
+                            inst_data.findtext(
+                                'presettlementprice').replace(',', ''),
                             'volume': inst_data.findtext('volume').replace(',', ''),
                             'open_interest': inst_data.findtext('openinterest').replace(',', '')})
                 return True
@@ -366,8 +372,10 @@ def handle_rollover(inst: Instrument, new_bar: DailyBar):
     """
     换月处理, 基差=新合约收盘价-旧合约收盘价, 从今日起之前的所有连续合约的OHLC加上基差
     """
-    old_bar = DailyBar.objects.filter(exchange=inst.exchange, code=inst.last_main, time=new_bar.time).first()
-    main_bar = MainBar.objects.get(exchange=inst.exchange, product_code=inst.product_code, time=new_bar.time)
+    old_bar = DailyBar.objects.filter(
+        exchange=inst.exchange, code=inst.last_main, time=new_bar.time).first()
+    main_bar = MainBar.objects.get(
+        exchange=inst.exchange, product_code=inst.product_code, time=new_bar.time)
     old_close = old_bar.close if old_bar else new_bar.close
     basis = new_bar.close - old_close
     main_bar.basis = basis
@@ -380,10 +388,12 @@ def handle_rollover(inst: Instrument, new_bar: DailyBar):
 
 def calc_main_inst(inst: Instrument, day: datetime.datetime):
     updated = False
-    expire_date = get_expire_date(inst.main_code, day) if inst.main_code else day.strftime('%y%m')
+    expire_date = get_expire_date(
+        inst.main_code, day) if inst.main_code else day.strftime('%y%m')
     # 条件1: 成交量最大 & (成交量>1万 & 持仓量>1万 or 股指) = 主力合约
     check_bar = DailyBar.objects.filter(
-        (Q(exchange=ExchangeType.CFFEX) | (Q(volume__gte=10000) & Q(open_interest__gte=10000))),
+        (Q(exchange=ExchangeType.CFFEX) |
+         (Q(volume__gte=10000) & Q(open_interest__gte=10000))),
         exchange=inst.exchange, code__regex=f"^{inst.product_code}[0-9]+",
         expire_date__gte=expire_date, time=day.date()).order_by('-volume').first()
     # 条件2: 不满足条件1但是连续3天成交量最大 = 主力合约
@@ -392,7 +402,8 @@ def calc_main_inst(inst: Instrument, day: datetime.datetime):
             "SELECT a.* from panel_dailybar a INNER JOIN (SELECT time, max(volume) v FROM panel_dailybar "
             "WHERE CODE RLIKE %s and time<=%s GROUP BY time ORDER BY time DESC LIMIT 3) b "
             "WHERE a.time=b.time and a.volume=b.v ORDER BY a.time DESC LIMIT 3", [f"^{inst.product_code}[0-9]+", day])
-        check_bar = check_bars[0] if len(set(bar.code for bar in check_bars)) == 1 else None
+        check_bar = check_bars[0] if len(
+            set(bar.code for bar in check_bars)) == 1 else None
     # 条件3: 取当前成交量最大的作为主力
     if check_bar is None:
         check_bar = DailyBar.objects.filter(
@@ -428,13 +439,15 @@ def create_main(inst: Instrument):
                 # time__gte=datetime.datetime.strptime('20211211', '%Y%m%d'),
                 exchange=inst.exchange, code__regex='^{}[0-9]+'.format(inst.product_code)).order_by(
                 'time').values_list('time', flat=True).distinct():
-            print(day, calc_main_inst(inst, timezone.make_aware(datetime.datetime.combine(day, datetime.time.min))))
+            print(day, calc_main_inst(inst, timezone.make_aware(
+                datetime.datetime.combine(day, datetime.time.min))))
     else:
         for day in DailyBar.objects.filter(
                 time__gt=inst.change_time,
                 exchange=inst.exchange, code__regex='^{}[0-9]+'.format(inst.product_code)).order_by(
                 'time').values_list('time', flat=True).distinct():
-            print(day, calc_main_inst(inst, timezone.make_aware(datetime.datetime.combine(day, datetime.time.min))))
+            print(day, calc_main_inst(inst, timezone.make_aware(
+                datetime.datetime.combine(day, datetime.time.min))))
     return True
 
 
@@ -489,8 +502,10 @@ def find_best_score(n: int = 20):
         'product_code', flat=True)
     result = list()
     for code_list in tqdm(combinations(code_list, n), total=nCr(code_list.count(), n)):
-        score_df = pd.DataFrame([corr_matrix.iloc[i, j] for i, j in combinations(code_list, 2)])
-        score = (round((1 - (score_df.abs() ** 2).mean()[0]) * 100, 3) - 50) * 2
+        score_df = pd.DataFrame([corr_matrix.iloc[i, j]
+                                for i, j in combinations(code_list, 2)])
+        score = (
+            round((1 - (score_df.abs() ** 2).mean()[0]) * 100, 3) - 50) * 2
         result.append((score, ','.join(code_list)))
     result.sort(key=lambda tup: tup[0])
     print('得分最高: ', result[-3:])
@@ -513,8 +528,10 @@ def calc_history_signal(inst: Instrument, day: datetime.datetime, strategy: Stra
     df['short_trend'] = df.close
     df['long_trend'] = df.close
     for idx in range(1, df.shape[0]):
-        df.iloc[idx, 7] = (df.iloc[idx - 1, 7] * (short_n - 1) + df.iloc[idx, 4]) / short_n
-        df.iloc[idx, 8] = (df.iloc[idx - 1, 8] * (long_n - 1) + df.iloc[idx, 4]) / long_n
+        df.iloc[idx, 7] = (df.iloc[idx - 1, 7] *
+                           (short_n - 1) + df.iloc[idx, 4]) / short_n
+        df.iloc[idx, 8] = (df.iloc[idx - 1, 8] *
+                           (long_n - 1) + df.iloc[idx, 4]) / long_n
     df['high_line'] = df.close.rolling(window=break_n).max()
     df['low_line'] = df.close.rolling(window=break_n).min()
     cur_pos = 0
@@ -565,7 +582,8 @@ def calc_history_signal(inst: Instrument, day: datetime.datetime, strategy: Stra
                 last_trade.avg_exit_price = new_bar.open
                 last_trade.close_time = cur_date
                 last_trade.closed_shares = 1
-                last_trade.profit = (new_bar.open - last_trade.avg_entry_price) * inst.volume_multiple
+                last_trade.profit = (
+                    new_bar.open - last_trade.avg_entry_price) * inst.volume_multiple
                 last_trade.save()
                 cur_pos = 0
         elif cur_pos < 0 and prev_date > last_trade.open_time:
@@ -584,7 +602,8 @@ def calc_history_signal(inst: Instrument, day: datetime.datetime, strategy: Stra
                 last_trade.avg_exit_price = new_bar.open
                 last_trade.close_time = cur_date
                 last_trade.closed_shares = 1
-                last_trade.profit = (last_trade.avg_entry_price - new_bar.open) * inst.volume_multiple
+                last_trade.profit = (
+                    last_trade.avg_entry_price - new_bar.open) * inst.volume_multiple
                 last_trade.save()
                 cur_pos = 0
         if cur_pos != 0 and cur_date.date() == day.date():
@@ -593,10 +612,10 @@ def calc_history_signal(inst: Instrument, day: datetime.datetime, strategy: Stra
             last_trade.closed_shares = 1
             if last_trade.direction == DirectionType.values[DirectionType.LONG]:
                 last_trade.profit = (last_trade.avg_entry_price - Decimal(df.open[cur_idx])) * \
-                                    inst.volume_multiple
+                    inst.volume_multiple
             else:
                 last_trade.profit = (Decimal(df.open[cur_idx]) - last_trade.avg_entry_price) * \
-                                    inst.volume_multiple
+                    inst.volume_multiple
             last_trade.save()
 
 
@@ -661,9 +680,11 @@ def load_kt_data(directory: str = r'D:\test'):
             insert_list = []
             with open(os.path.join(directory, filename)) as f:
                 for line in f:
-                    date, oo, hh, ll, cc, se, oi, vo, main_code = [part.strip() for part in line.split(',')]
+                    date, oo, hh, ll, cc, se, oi, vo, main_code = [
+                        part.strip() for part in line.split(',')]
                     date = f'{int(date[:3])+1900}-{date[3:5]}-{date[5:7]}'
-                    date = timezone.make_aware(datetime.datetime.strptime(date, '%Y-%m-%d'))
+                    date = timezone.make_aware(
+                        datetime.datetime.strptime(date, '%Y-%m-%d'))
                     if cur_main != main_code:
                         if last_main != main_code:
                             last_main = cur_main
@@ -703,12 +724,14 @@ async def get_contracts_argument(day: datetime.datetime = None) -> bool:
 "TRADINGDAY":"20211217","UPDATE_DATE":"2021-12-17 09:51:20","UPPER_VALUE":".08000000","id":124468118}
                     """
                     # logger.info(f'inst_data: {inst_data}')
-                    code = re.findall('[A-Za-z]+', inst_data['INSTRUMENTID'])[0]
+                    code = re.findall(
+                        '[A-Za-z]+', inst_data['INSTRUMENTID'])[0]
                     if code in IGNORE_INST_LIST:
                         continue
                     exchange = ExchangeType.INE if code in INE_INST_LIST else ExchangeType.SHFE
                     limit_ratio = str_to_number(inst_data['UPPER_VALUE'])
-                    redis_client.set(f"LIMITRATIO:{exchange}:{code}:{inst_data['INSTRUMENTID']}", limit_ratio)
+                    redis_client.set(
+                        f"LIMITRATIO:{exchange}:{code}:{inst_data['INSTRUMENTID']}", limit_ratio)
             # 大商所
             async with session.post(f'http://{dce_ip}/publicweb/notificationtips/exportDayTradPara.html',
                                     data={'exportFlag': 'txt'}) as response:
@@ -733,7 +756,8 @@ async def get_contracts_argument(day: datetime.datetime = None) -> bool:
                     if code in IGNORE_INST_LIST:
                         continue
                     limit_ratio = str_to_number(inst_data[5])
-                    redis_client.set(f"LIMITRATIO:{ExchangeType.DCE}:{code}:{inst_data[0]}", limit_ratio)
+                    redis_client.set(
+                        f"LIMITRATIO:{ExchangeType.DCE}:{code}:{inst_data[0]}", limit_ratio)
             # 郑商所
             async with session.get(f'http://{czce_ip}/cn/DFSStaticFiles/Future/{day.year}/{day_str}/'
                                    f'FutureDataClearParams.txt') as response:
@@ -741,7 +765,8 @@ async def get_contracts_argument(day: datetime.datetime = None) -> bool:
                 for lines in rst.split('\n')[2:]:
                     if not lines:
                         continue
-                    inst_data = [x.strip() for x in lines.split('|' if '|' in lines else ',')]
+                    inst_data = [x.strip() for x in lines.split(
+                        '|' if '|' in lines else ',')]
                     """
 [0合约代码,1当日结算价,2是否单边市,3连续单边市天数,4交易保证金率(%),5涨跌停板(%),6交易手续费,7交割手续费,8日内平今仓交易手续费,9日持仓限额]
 ['AP201','8,148.00','N','0','10','±9','5.00','0.00','20.00','200','']
@@ -750,7 +775,8 @@ async def get_contracts_argument(day: datetime.datetime = None) -> bool:
                     if code in IGNORE_INST_LIST:
                         continue
                     limit_ratio = str_to_number(inst_data[5][1:]) / 100
-                    redis_client.set(f"LIMITRATIO:{ExchangeType.CZCE}:{code}:{inst_data[0]}", limit_ratio)
+                    redis_client.set(
+                        f"LIMITRATIO:{ExchangeType.CZCE}:{code}:{inst_data[0]}", limit_ratio)
             # 中金所
             async with session.get(f"http://{cffex_ip}/sj/jycs/{day.strftime('%Y%m/%d')}/index.xml") as response:
                 rst = await response.text()
@@ -780,17 +806,22 @@ async def get_contracts_argument(day: datetime.datetime = None) -> bool:
                     code = inst_data.findtext('PRODUCT_ID').strip()
                     if code in IGNORE_INST_LIST:
                         continue
-                    limit_ratio = str_to_number(inst_data.findtext('UPPER_VALUE').strip())
-                    redis_client.set(f"LIMITRATIO:{ExchangeType.CFFEX}:{code}:{inst_id}", limit_ratio)
+                    limit_ratio = str_to_number(
+                        inst_data.findtext('UPPER_VALUE').strip())
+                    redis_client.set(
+                        f"LIMITRATIO:{ExchangeType.CFFEX}:{code}:{inst_id}", limit_ratio)
             # 保存数据
             for inst in Instrument.objects.all():
-                ratio = redis_client.get(f"LIMITRATIO:{inst.exchange}:{inst.product_code}:{inst.main_code}")
+                ratio = redis_client.get(
+                    f"LIMITRATIO:{inst.exchange}:{inst.product_code}:{inst.main_code}")
                 if ratio:
                     ratio = str_to_number(ratio)
                     inst.up_limit_ratio = ratio
                     inst.down_limit_ratio = ratio
-                    inst.save(update_fields=['up_limit_ratio', 'down_limit_ratio'])
+                    inst.save(update_fields=[
+                              'up_limit_ratio', 'down_limit_ratio'])
         return True
     except Exception as e:
-        logger.warning(f'get_contracts_argument failed: {repr(e)}', exc_info=True)
+        logger.warning(
+            f'get_contracts_argument failed: {repr(e)}', exc_info=True)
         return False

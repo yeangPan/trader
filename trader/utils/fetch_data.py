@@ -1,3 +1,6 @@
+from django.utils import timezone
+from trader.utils import is_trading_day, update_from_shfe, update_from_dce, update_from_czce, update_from_cffex, \
+    create_main_all, fetch_from_quandl_all, clean_daily_bar, load_kt_data, calc_his_all, check_trading_day
 import sys
 import os
 import datetime
@@ -16,9 +19,6 @@ else:
 os.environ["DJANGO_SETTINGS_MODULE"] = "dashboard.settings"
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 django.setup()
-from trader.utils import is_trading_day, update_from_shfe, update_from_dce, update_from_czce, update_from_cffex, \
-    create_main_all, fetch_from_quandl_all, clean_daily_bar, load_kt_data, calc_his_all, check_trading_day
-from django.utils import timezone
 
 
 async def fetch_bar():

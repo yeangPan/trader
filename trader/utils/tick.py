@@ -23,5 +23,8 @@ class TickBar(object):
         self.day_low = data.LowestPrice
         self.open = data.OpenPrice
         self.pre_close = data.PreClosePrice
-        self.dateTime = datetime.datetime.strptime(day+data.UpdateTime, "%Y%m%d%H:%M:%S")
-        self.dateTime = self.dateTime + datetime.timedelta(microseconds=datetime.datetime.now().microsecond)
+        self.dateTime = datetime.datetime.strptime(
+            day+data.UpdateTime, "%Y%m%d%H:%M:%S")
+        self.dateTime = self.dateTime + \
+            datetime.timedelta(
+                microseconds=datetime.datetime.now().microsecond)
