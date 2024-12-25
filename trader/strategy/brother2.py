@@ -23,7 +23,8 @@ from django.db.models import Q, F, Sum
 from django.utils import timezone
 from talib import ATR
 import ujson as json
-import aioredis
+from typing import Tuple
+from redis import asyncio as aioredis
 from trader.strategy import BaseModule
 from trader.utils.func_container import RegisterCallback
 from trader.utils.read_config import config, ctp_errors
@@ -805,7 +806,7 @@ class TradeStrategy(BaseModule):
         except Exception as e:
             logger.warning(f'calculate 发生错误: {repr(e)}', exc_info=True)
 
-    def calc_signal(self, inst: Instrument, day: datetime.datetime) -> (Signal, Decimal):
+    def calc_signal(self, inst: Instrument, day: datetime.datetime) -> Tuple[Signal, Decimal]:
         try:
             break_n = self.__strategy.param_set.get(
                 code='BreakPeriod').int_value
