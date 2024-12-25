@@ -25,7 +25,7 @@ from django.utils import timezone
 from croniter import croniter
 import asyncio
 from abc import abstractmethod, ABCMeta
-import aioredis
+from redis import asyncio as aioredis
 
 from trader.utils.func_container import CallbackFunctionContainer
 from trader.utils.read_config import config
@@ -43,7 +43,8 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
             f"{config.getint('REDIS', 'port', fallback=6379)}/{config.getint('REDIS', 'db', fallback=0)}",
             decode_responses=True)
         self.raw_redis = redis.StrictRedis(host=config.get('REDIS', 'host', fallback='localhost'),
-                                           port=config.getint('REDIS', 'port', fallback=6379),
+                                           port=config.getint(
+                                               'REDIS', 'port', fallback=6379),
                                            db=config.getint('REDIS', 'db', fallback=0), decode_responses=True)
         self.sub_client = self.redis_client.pubsub()
         self.initialized = False
@@ -63,7 +64,8 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
             if 'crontab' in args:
                 key = args['crontab']
                 self.crontab_router[key]['func'] = getattr(self, fun_name)
-                self.crontab_router[key]['iter'] = croniter(args['crontab'], self.datetime)
+                self.crontab_router[key]['iter'] = croniter(
+                    args['crontab'], self.datetime)
                 self.crontab_router[key]['handle'] = None
             elif 'channel' in args:
                 self.channel_router[args['channel']] = getattr(self, fun_name)
@@ -74,7 +76,8 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
     def _call_next(self, key):
         if self.crontab_router[key]['handle'] is not None:
             self.crontab_router[key]['handle'].cancel()
-        self.crontab_router[key]['handle'] = self.io_loop.call_at(self._get_next(key), self._call_next, key)
+        self.crontab_router[key]['handle'] = self.io_loop.call_at(
+            self._get_next(key), self._call_next, key)
         self.io_loop.create_task(self.crontab_router[key]['func']())
 
     async def install(self):
@@ -86,11 +89,13 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
             for key, cron_dict in self.crontab_router.items():
                 if cron_dict['handle'] is not None:
                     cron_dict['handle'].cancel()
-                cron_dict['handle'] = self.io_loop.call_at(self._get_next(key), self._call_next, key)
+                cron_dict['handle'] = self.io_loop.call_at(
+                    self._get_next(key), self._call_next, key)
             self.initialized = True
             logger.debug('%s plugin installed', type(self).__name__)
         except Exception as e:
-            logger.error('%s plugin install failed: %s', type(self).__name__, repr(e), exc_info=True)
+            logger.error('%s plugin install failed: %s', type(
+                self).__name__, repr(e), exc_info=True)
 
     async def uninstall(self):
         try:
@@ -105,7 +110,8 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
             self.initialized = False
             logger.debug('%s plugin uninstalled', type(self).__name__)
         except Exception as e:
-            logger.error('%s plugin uninstall failed: %s', type(self).__name__, repr(e), exc_info=True)
+            logger.error('%s plugin uninstall failed: %s', type(
+                self).__name__, repr(e), exc_info=True)
 
     async def _msg_reader(self):
         # {'type': 'pmessage', 'pattern': 'channel:*', 'channel': 'channel:1', 'data': 'Hello'}
@@ -115,7 +121,8 @@ class BaseModule(CallbackFunctionContainer, metaclass=ABCMeta):
                 pattern = msg['pattern']
                 data = json.loads(msg['data'])
                 # logger.debug("%s channel[%s] Got Message:%s", type(self).__name__, channel, msg)
-                self.io_loop.create_task(self.channel_router[pattern](channel, data))
+                self.io_loop.create_task(
+                    self.channel_router[pattern](channel, data))
             elif msg['type'] == 'punsubscribe':
                 break
         logger.debug('%s quit _msg_reader!', type(self).__name__)

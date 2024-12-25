@@ -13,21 +13,13 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-import sys
+
+
 import os
-import django
-if sys.platform == 'darwin':
-    sys.path.append('/Users/jeffchen/Documents/gitdir/dashboard')
-elif sys.platform == 'win32':
-    sys.path.append(r'E:\github\dashboard')
-else:
-    sys.path.append('/root/gitee/dashboard')
-os.environ["DJANGO_SETTINGS_MODULE"] = "dashboard.settings"
-os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
-django.setup()
 import redis
 import logging
 from logging import handlers
+from trader.settings import *
 from trader.strategy.brother2 import TradeStrategy
 from trader.utils.read_config import config_file, app_dir, config
 
@@ -48,7 +40,8 @@ class RedislHandler(logging.StreamHandler):
 if __name__ == '__main__':
     os.path.exists(app_dir.user_log_dir) or os.makedirs(app_dir.user_log_dir)
     log_file = os.path.join(app_dir.user_log_dir, 'trader.log')
-    file_handler = handlers.RotatingFileHandler(log_file, encoding='utf-8', maxBytes=1024*1024, backupCount=1)
+    file_handler = handlers.RotatingFileHandler(
+        log_file, encoding='utf-8', maxBytes=1024*1024, backupCount=1)
     general_formatter = logging.Formatter(config.get('LOG', 'format'))
     file_handler.setFormatter(general_formatter)
     file_handler.setLevel(config.get('LOG', 'file_level', fallback='DEBUG'))

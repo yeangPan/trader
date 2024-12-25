@@ -142,3 +142,6 @@ ENV/
 .ropeproject
 /test/test_jq2.py
 /test/test_jq.py
+
+
+__pycache__

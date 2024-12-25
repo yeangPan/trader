@@ -15,10 +15,13 @@
 # under the License.
 import sys
 import os
+from pathlib import Path
 import xml.etree.ElementTree as ET
 import configparser
 from appdirs import AppDirs
 from trader import version as app_ver
+
+HOME_DIR = Path(__file__).parent.parent.parent
 
 config_example = """# trader configuration file
 [MSG_CHANNEL]
@@ -72,7 +75,6 @@ config = configparser.ConfigParser(interpolation=None)
 config.read(config_file)
 
 ctp_errors = {}
-ctp_xml_path = 'D:/github/trader/trader/utils/error.xml' if sys.platform == 'win32' \
-    else '/root/gitee/trader/trader/utils/error.xml'
+ctp_xml_path = HOME_DIR / "trader" / "utils" / "error.xml"
 for error in ET.parse(ctp_xml_path).getroot():
     ctp_errors[int(error.attrib['value'])] = error.attrib['prompt']

@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "trader"
+version = "0.1.0"
+description = ""
+authors = ["yangp <yeangpan@outlook.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiohttp = {extras = ["speedups"], version = "^3.11.11"}
+redis = "^5.2.1"
+ujson = "^5.10.0"
+appdirs = "^1.4.4"
+django = "^5.1.4"
+beautifulsoup4 = "^4.12.3"
+lxml = "^5.3.0"
+requests = "^2.32.3"
+numpy = "^2.2.1"
+pandas = "^2.2.3"
+croniter = "^6.0.0"
+asynctest = "^0.13.0"
+django-redis = "^5.4.0"
+django-choices = "^2.0.0"
+mysqlclient = "^2.2.6"
+tqdm = "^4.67.1"
+pytz = "^2024.2"
+tzdata = "^2024.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
